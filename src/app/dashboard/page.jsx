@@ -87,20 +87,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* --- LEFT COLUMNS (HISTORY & BOOKMARKS) --- */}
           <div className="lg:col-span-8 space-y-12">
-            {/* ACTIVITY STREAK (MOBILE ONLY) */}
-            <section className="lg:hidden">
-              <div className="bg-zinc-900/40 p-5 border border-zinc-800 rounded-xl relative overflow-hidden flex justify-between items-center">
-                <div>
-                  <p className="text-xs font-medium text-zinc-500 mb-1">
-                    Activity Streak
-                  </p>
-                  <h3 className="text-2xl font-bold text-zinc-100">12 Days</h3>
-                </div>
-                <div className="bg-zinc-800/50 p-3 rounded-full">
-                  <Zap size={24} className="text-zinc-400" />
-                </div>
-              </div>
-            </section>
+            
 
             {/* RECENT HISTORY
             <section>
