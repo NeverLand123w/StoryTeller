@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -101,7 +102,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* RECENT HISTORY */}
+            {/* RECENT HISTORY
             <section>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-zinc-100">
@@ -135,7 +136,6 @@ export default function Dashboard() {
                         />
                       </div>
                       <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden">
-                        {/* Mock progress bar */}
                         <div
                           className="bg-zinc-400 h-full rounded-full"
                           style={{ width: `${80 - i * 20}%` }}
@@ -153,6 +153,7 @@ export default function Dashboard() {
                 </div>
               )}
             </section>
+            */}
 
             {/* SAVED STORIES */}
             <section>
@@ -160,14 +161,6 @@ export default function Dashboard() {
                 <h3 className="text-lg font-semibold text-zinc-100">
                   Saved Library
                 </h3>
-                <div className="flex gap-2 text-zinc-500">
-                  <button className="p-1 hover:text-zinc-300 transition-colors bg-zinc-800/50 rounded">
-                    <LayoutGrid size={16} />
-                  </button>
-                  <button className="p-1 hover:text-zinc-300 transition-colors">
-                    <List size={16} />
-                  </button>
-                </div>
               </div>
 
               {userData?.bookmarks?.length > 0 ? (
@@ -231,8 +224,20 @@ export default function Dashboard() {
 
           {/* --- RIGHT SIDEBAR --- */}
           <aside className="lg:col-span-4 space-y-8">
-            
 
+            <section className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl">
+              <h3 className="text-sm font-semibold text-zinc-300 mb-4">
+                Followers
+              </h3>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-zinc-500">Total Followers</span>
+                  <span className="text-sm font-medium text-zinc-200">
+                    {userData?.followersCount || 0}
+                  </span>
+                </div>
+              </div>
+            </section>
             {/* FOLLOWING CREATORS */}
             <section className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-6">
               <div className="flex items-center justify-between mb-5">
@@ -280,10 +285,6 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-
-              <button className="w-full mt-6 py-2.5 text-sm font-medium text-zinc-400 bg-zinc-950 border border-zinc-800 rounded-lg hover:text-zinc-200 hover:border-zinc-700 transition-all">
-                Discover Creators
-              </button>
             </section>
 
             {/* LIBRARY STATS */}
@@ -298,12 +299,15 @@ export default function Dashboard() {
                     {userData?.bookmarks?.length || 0}
                   </span>
                 </div>
+
+                {/*
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-zinc-500">Account Type</span>
                   <span className="text-sm font-medium text-zinc-200">
                     Reader
                   </span>
-                </div>
+                </div> 
+                */}
               </div>
             </section>
           </aside>

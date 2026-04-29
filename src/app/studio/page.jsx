@@ -19,13 +19,13 @@ export default function CreatorStudio() {
 
   const [chapterNumber, setChapterNumber] = useState(1); // 🟢 ADD THIS
 
-const handleFile = (e, type) => {
+  const handleFile = (e, type) => {
     // 1. Safely grab the file from the event
     const file = e?.target?.files?.[0];
 
     // 2. Ensure it exists AND is a valid Blob/File object before reading
     if (!file || !(file instanceof Blob)) {
-      return; 
+      return;
     }
 
     // 3. Proceed with FileReader
@@ -248,8 +248,10 @@ const handleFile = (e, type) => {
                   className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 p-3 rounded-lg text-sm outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 transition-all"
                 >
                   <option value="Novel">Novel</option>
-                  <option value="Sci-Fi">Sci-Fi</option>
                   <option value="Manga">Manga</option>
+                  <option value="Fiction">Fiction</option>
+                  <option value="Sci-Fi">Sci-Fi</option>
+                  <option value="Comic">Comic</option>
                 </select>
               </div>
 

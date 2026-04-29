@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { use , useParams, useRouter } from "next/navigation";
 import {
   ShieldCheck,
   Image as ImageIcon,
@@ -93,14 +93,18 @@ export default function EditStudio() {
       });
   }, [id]);
 
-  // IMAGE HANDLER
+  // Handle thumbnail file selection and convert to base64
   const handleFile = (e) => {
-    const file = e.target.files;
+    const file = e.target.files?.[0];
+    
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => setThumbnail(reader.result);
+    reader.onloadend = () => {
+      setThumbnail(reader.result);
+    };
     reader.readAsDataURL(file);
+    e.target.value = ""; 
   };
 
   // 🟢 FIX: Handles both ADDING new chapters and UPDATING existing ones

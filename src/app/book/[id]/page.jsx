@@ -21,8 +21,6 @@ export default function BookDetailsPage() {
 
   const [data, setData] = useState(null);
   const [chapters, setChapters] = useState([]);
-  console.log("DEBUG: Looking for chapters with ID:", id);
-  console.log("DEBUG: Found Chapters:", chapters); // Does this print anything in your VS Terminal?
   const [isFollowing, setIsFollowing] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,7 @@ export default function BookDetailsPage() {
 
   const handleRead = () => {
     if (chapters.length > 0) {
-      router.push(`/read/${data._id}?ch=${chapters._id}`);
+      router.push(`/read/${data._id}?ch=${chapters[0]._id}`);
     } else {
       showToast("No chapters published yet.", "warning");
     }

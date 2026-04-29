@@ -1,3 +1,4 @@
+// your auth config file (often app/api/auth/[...nextauth]/route.js)
 import NextAuth from "next-auth/next";
 import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/mongodb";
@@ -10,20 +11,33 @@ export const authOptions = {
       name: "credentials",
       credentials: {},
       async authorize(credentials) {
-        const { email, password } = credentials;
+        const { email, password, otp } = credentials;
         try {
           await connectDB();
           const user = await User.findOne({ email });
 
-          if (!user) return null;
+          if (!user) throw new Error("Invalid credentials");
 
           const passwordMatch = await bcrypt.compare(password, user.password);
+          if (!passwordMatch) throw new Error("Invalid credentials");
 
-          if (!passwordMatch) return null;
+          // 🚨 --- NEW 2FA OTP LOGIC HERE --- 🚨
+          if (user.twoFactorCode !== otp) {
+            throw new Error("Invalid or incorrect code.");
+          }
 
-          return user;
+          if (user.twoFactorCodeExpiry < new Date()) {
+            throw new Error("This code has expired. Please log in again.");
+          }
+
+          // If the OTP is correct and hasn't expired, delete it from the DB
+          user.twoFactorCode = undefined;
+          user.twoFactorCodeExpiry = undefined;
+          await user.save();
+
+          return user; // Logs the user in
         } catch (error) {
-          console.log("Login Error", error);
+          throw new Error(error.message);
         }
       },
     }),

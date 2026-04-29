@@ -20,7 +20,7 @@ export default function ManageBooks() {
   const handleDeleteStory = async (storyId) => {
     if (
       !confirm(
-        "Are you sure you want to delete this story? This will also remove all its chapters and cannot be undone.",
+        "Are you sure you want to delete this story? This will also remove all its chapters and cannot be undone."
       )
     )
       return;
@@ -31,9 +31,7 @@ export default function ManageBooks() {
       });
 
       if (res.ok) {
-        // 🟢 Filter the deleted story out of the local state so it disappears instantly
         setStories((prev) => prev.filter((story) => story._id !== storyId));
-        // Optional: show a success toast here if you have one
       } else {
         alert("Failed to delete the story. Please try again.");
       }
@@ -56,18 +54,22 @@ export default function ManageBooks() {
 
   if (loading) {
     return (
-      <div className="bg-zinc-950 min-h-screen flex items-center justify-center text-zinc-500 text-sm font-medium animate-pulse">
-        Loading your stories...
+      <div className="bg-zinc-950 min-h-screen flex items-center justify-center text-zinc-500 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-5 h-5 border-2 border-zinc-700 border-t-zinc-300 rounded-full animate-spin" />
+          <span className="text-sm font-medium">Loading your stories...</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="bg-zinc-950 min-h-screen text-zinc-300 font-sans selection:bg-zinc-800 selection:text-white pb-20">
-      <div className="max-w-6xl mx-auto pt-24 px-6">
-        <header className="mb-12 border-b border-zinc-900 pb-8 flex flex-col md:flex-row justify-between md:items-end gap-6">
+      <div className="max-w-5xl mx-auto pt-24 px-6">
+        {/* Header Section */}
+        <header className="mb-10 border-b border-zinc-900 pb-8 flex flex-col md:flex-row justify-between md:items-center gap-6">
           <div>
-            <h1 className="text-4xl font-bold text-zinc-100 tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-zinc-100 tracking-tight">
               Manage Stories
             </h1>
           </div>
@@ -78,19 +80,20 @@ export default function ManageBooks() {
           </Link>
         </header>
 
+        {/* Stories List */}
         {stories.length > 0 ? (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-6">
             {stories.map((story) => (
               <div
                 key={story._id}
-                className="bg-zinc-900/40 border border-zinc-800 p-5 rounded-xl flex flex-col md:flex-row gap-6 items-center hover:bg-zinc-900/80 transition-colors"
+                className="group bg-zinc-900/30 hover:bg-zinc-900/50 border border-zinc-800/80 p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row gap-6 sm:gap-8 transition-all duration-300"
               >
-                {/* Thumbnail */}
-                <div className="w-full md:w-28 aspect-[3/4] bg-zinc-950 flex-shrink-0 relative overflow-hidden rounded-lg border border-zinc-800/50">
+                {/* Thumbnail (Slightly larger and sleeker) */}
+                <div className="w-full sm:w-48 md:w-36 aspect-[2/3] bg-zinc-950 flex-shrink-0 relative overflow-hidden rounded-xl border border-zinc-800 shadow-sm mx-auto md:mx-0">
                   {story.thumbnail ? (
                     <img
                       src={story.thumbnail}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       alt={`${story.title} cover`}
                     />
                   ) : (
@@ -100,62 +103,79 @@ export default function ManageBooks() {
                   )}
                 </div>
 
-                {/* Details */}
-                <div className="flex-1 space-y-3 w-full text-center md:text-left">
-                  <div className="inline-flex items-center px-2.5 py-1 bg-zinc-950 border border-zinc-800 text-xs font-medium text-zinc-400 rounded-md">
-                    {story.genre} <span className="mx-2 text-zinc-700">•</span>{" "}
-                    {story.contentType === "text" ? "Text" : "PDF"}
-                  </div>
-                  <h3 className="text-xl font-semibold text-zinc-100">
-                    {story.title}
-                  </h3>
-                  <p className="text-zinc-400 text-sm line-clamp-2 max-w-2xl leading-relaxed">
-                    {story.description ||
-                      "No description provided for this story."}
-                  </p>
+                {/* Details & Actions Container */}
+                <div className="flex-1 flex flex-col h-full justify-between">
+                  {/* Top: Badges and Title */}
+                  <div className="space-y-4">
+                    <div className="text-center md:text-left">
+                      <div className="inline-flex items-center px-3 py-1 mb-3 bg-zinc-950 border border-zinc-800/80 text-xs font-semibold tracking-wide text-zinc-400 rounded-full">
+                        {story.genre} <span className="mx-2 text-zinc-700">•</span>{" "}
+                        {story.contentType === "text" ? "Text" : "PDF"}
+                      </div>
+                      <h3 className="text-2xl font-bold text-zinc-100 group-hover:text-white transition-colors">
+                        {story.title}
+                      </h3>
+                    </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center justify-center md:justify-start gap-5 pt-1 text-zinc-500">
-                    <span className="flex items-center gap-1.5 text-sm font-medium">
-                      <Eye size={16} /> {story.views || 0}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-sm font-medium">
-                      <Heart size={16} /> {story.likes?.length || 0}
-                    </span>
+                    <p className="text-zinc-400 text-sm md:text-base line-clamp-3 leading-relaxed text-center md:text-left">
+                      {story.description ||
+                        "No description provided for this story."}
+                    </p>
                   </div>
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex-shrink-0 flex flex-col sm:flex-row md:flex-col gap-3 w-full md:w-auto">
-                  <Link href={`/studio/edit/${story._id}`} className="w-full">
-                    <button className="w-full px-5 py-2.5 bg-zinc-800 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 hover:bg-zinc-700 transition-colors">
-                      <Edit3 size={16} /> Edit Story
-                    </button>
-                  </Link>
-                  <Link href={`/book/${story._id}`} className="w-full">
-                    <button className="w-full px-5 py-2.5 bg-zinc-950 border border-zinc-800 text-zinc-300 text-sm font-medium rounded-lg flex items-center justify-center gap-2 hover:bg-zinc-900 hover:text-white transition-colors">
-                      <Database size={16} /> View Live
-                    </button>
-                  </Link>
-                  <button
-                    onClick={() => handleDeleteStory(story._id)}
-                    className="ml-2 p-2 text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                    title="Delete Story"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {/* Bottom Bar: Stats and Action Buttons */}
+                  <div className="mt-6 pt-5 border-t border-zinc-800/50 flex flex-col sm:flex-row items-center justify-between gap-5">
+                    
+                    {/* Stats */}
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-400 bg-zinc-950/50 px-3 py-1.5 rounded-lg border border-zinc-800/50 w-full sm:w-auto justify-center">
+                      <Eye size={16} className="text-zinc-500" />
+                      {story.views || 0} Views
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <Link
+                        href={`/studio/edit/${story._id}`}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm"
+                      >
+                        <Edit3 size={16} className="text-zinc-400" />
+                        Edit
+                      </Link>
+
+                      <Link
+                        href={`/book/${story._id}`}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900 text-zinc-300 hover:text-zinc-100 text-sm font-medium rounded-lg transition-all duration-200 shadow-sm"
+                      >
+                        <Database size={16} className="text-zinc-500" />
+                        Live
+                      </Link>
+
+                      <button
+                        onClick={() => handleDeleteStory(story._id)}
+                        title="Delete Story"
+                        className="p-2.5 text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all duration-200 flex items-center justify-center"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="py-24 border border-dashed border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-zinc-500 space-y-4 bg-zinc-900/20">
-            <AlertCircle size={40} className="text-zinc-600" />
+          /* Empty State */
+          <div className="py-24 border-2 border-dashed border-zinc-800/80 rounded-3xl flex flex-col items-center justify-center text-zinc-500 space-y-5 bg-zinc-900/10">
+            <div className="h-16 w-16 bg-zinc-900/50 rounded-full flex items-center justify-center border border-zinc-800/50">
+              <AlertCircle size={32} className="text-zinc-600" />
+            </div>
             <div className="text-center">
-              <h3 className="text-lg font-medium text-zinc-300 mb-1">
+              <h3 className="text-xl font-semibold text-zinc-200 mb-2">
                 No stories found
               </h3>
-              <p className="text-sm">You haven't uploaded any stories yet.</p>
+              <p className="text-sm text-zinc-400">
+                You haven't uploaded any stories yet.
+              </p>
             </div>
           </div>
         )}

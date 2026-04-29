@@ -25,6 +25,7 @@ export async function GET(req) {
     const stories = await Story.find(filter)
       .select("-content -pdfData") // Protect heavy data
       .sort({ views: -1 }); // 🟢 FIXED: Removed bookmarksCount
+      
 
     return NextResponse.json(stories);
   } catch (error) {

@@ -15,6 +15,7 @@ import {
   Rows,
   Square,
 } from "lucide-react";
+import { useCreator } from "@/lib/useCreator";
 
 const PdfView = dynamic(() => import("@/components/PdfView"), {
   ssr: false,
@@ -26,43 +27,7 @@ const PdfView = dynamic(() => import("@/components/PdfView"), {
   ),
 });
 
-// --- ADVANCED HIGHLIGHTING UTILITIES ---
-function getXPathForNode(node, root) {
-  const parts = [];
-  let current = node;
-  while (current && current !== root) {
-    const parent = current.parentNode;
-    if (!parent) break;
-    const siblings = Array.from(parent.childNodes);
-    const index = siblings.indexOf(current);
-    const tag =
-      current.nodeType === Node.TEXT_NODE
-        ? `text()[${index + 1}]`
-        : `${current.nodeName.toLowerCase()}[${
-            siblings
-              .slice(0, index + 1)
-              .filter((s) => s.nodeName === current.nodeName).length
-          }]`;
-    parts.unshift(tag);
-    current = parent;
-  }
-  return parts.join("/");
-}
-
-function getNodeByXPath(xpath, root) {
-  try {
-    const result = document.evaluate(
-      xpath,
-      root,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
-    );
-    return result.singleNodeValue;
-  } catch {
-    return null;
-  }
-}
+// --- ROBUST GLOBAL-INDEXING HIGHLIGHTING UTILITIES ---
 
 function getTextNodesInRange(range) {
   const result = [];
@@ -93,12 +58,73 @@ function getTextNodesInRange(range) {
     }
   }
 
-  // Handle single text node selection fallback
   if (result.length === 0 && root.nodeType === Node.TEXT_NODE) {
     result.push({ node: root, start: range.startOffset, end: range.endOffset });
   }
 
   return result;
+}
+
+// Translate Local Selections into Total Global pure-text Index Numbers
+function getGlobalTextNodesInfo(root, targetNodesInRange) {
+  const targetMap = new Map();
+  targetNodesInRange.forEach((item) => targetMap.set(item.node, item));
+
+  const segments = [];
+  let runningGlobal = 0;
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  let curr;
+
+  while ((curr = walker.nextNode())) {
+    const length = curr.nodeValue.length;
+    if (targetMap.has(curr)) {
+      const item = targetMap.get(curr);
+      segments.push({
+        start: runningGlobal + item.start,
+        end: runningGlobal + item.end,
+      });
+    }
+    runningGlobal += length;
+  }
+
+  if (segments.length === 0) return null;
+  return {
+    startGlobal: Math.min(...segments.map((s) => s.start)),
+    endGlobal: Math.max(...segments.map((s) => s.end)),
+  };
+}
+
+// Extract Nodes given global bounds limits
+function getNodesInGlobalRange(root, startGlobal, endGlobal) {
+  const nodesToWrap = [];
+  let currGlobal = 0;
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  let curr;
+
+  while ((curr = walker.nextNode())) {
+    const length = curr.nodeValue.length;
+    const nodeStart = currGlobal;
+    const nodeEnd = currGlobal + length;
+
+    if (nodeEnd > startGlobal && nodeStart < endGlobal) {
+      const overlapStart = Math.max(0, startGlobal - nodeStart);
+      const overlapEnd = Math.min(length, endGlobal - nodeStart);
+      nodesToWrap.push({ node: curr, start: overlapStart, end: overlapEnd });
+    }
+    currGlobal += length;
+    if (currGlobal >= endGlobal) break;
+  }
+  return nodesToWrap;
 }
 
 export default function ReaderPage() {
@@ -121,6 +147,8 @@ export default function ReaderPage() {
 
   const searchParams = useSearchParams();
   const chapterId = searchParams.get("ch");
+
+  const creator = useCreator(story?.author);
 
   const [selectionMenu, setSelectionMenu] = useState({
     show: false,
@@ -152,8 +180,6 @@ export default function ReaderPage() {
     );
   };
 
-  // --- HIGHLIGHTER ENGINE: ROBUST XPATH IMPLEMENTATION ---
-
   const attachMarkListener = (mark, markId) => {
     if (mark.dataset.listenerAttached) return;
     mark.dataset.listenerAttached = "1";
@@ -179,30 +205,27 @@ export default function ReaderPage() {
     });
   };
 
-  const paintHighlight = (markId, color, segments) => {
+  const paintHighlight = (markId, color, startGlobal, endGlobal) => {
     const root = contentRef.current;
     if (!root) return;
 
-    // Reverse segments so mutating DOM at the end doesn't shift offsets of earlier nodes
-    const reversedSegments = [...segments].reverse();
+    const nodesToWrap = getNodesInGlobalRange(root, startGlobal, endGlobal);
 
-    reversedSegments.forEach((seg) => {
-      const textNode = getNodeByXPath(seg.xpath, root);
-      if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
-
-      const before = textNode.splitText(seg.start);
-      before.splitText(seg.end - seg.start);
-      const highlighted = before;
+    // Render cleanly regardless of existing HTML
+    [...nodesToWrap].reverse().forEach(({ node, start, end }) => {
+      const split1 = node.splitText(start);
+      split1.splitText(end - start);
+      const target = split1;
 
       const mark = document.createElement("mark");
       mark.dataset.markId = markId;
       mark.style.backgroundColor = color;
-      mark.style.color = "#18181b"; // dark zinc for readability
+      mark.style.color = "#18181b";
       mark.className =
         "rounded-[2px] px-0.5 shadow-sm cursor-pointer transition-colors";
 
-      highlighted.parentNode.insertBefore(mark, highlighted);
-      mark.appendChild(highlighted);
+      target.parentNode.insertBefore(mark, target);
+      mark.appendChild(target);
 
       attachMarkListener(mark, markId);
     });
@@ -213,10 +236,18 @@ export default function ReaderPage() {
     if (!raw) return;
     try {
       const store = JSON.parse(raw);
-      highlightStoreRef.current = store;
-      Object.entries(store).forEach(([markId, { color, segments }]) => {
-        paintHighlight(markId, color, segments);
+      let requiresPurgeOldStoreVersion = false;
+
+      Object.entries(store).forEach(([markId, val]) => {
+        // Validation ensuring backwards-compatibility for bugged store saves
+        if (val.startGlobal !== undefined) {
+          paintHighlight(markId, val.color, val.startGlobal, val.endGlobal);
+          highlightStoreRef.current[markId] = val;
+        } else {
+          requiresPurgeOldStoreVersion = true;
+        }
       });
+      if (requiresPurgeOldStoreVersion) persistStore(); // Re-saves & purges strictly the newly clean global markers map
     } catch (e) {
       console.error("Failed to restore highlights:", e);
       localStorage.removeItem(`hl-store-${id}-${chapterId}`);
@@ -225,7 +256,6 @@ export default function ReaderPage() {
 
   const applyHighlight = (color) => {
     const root = contentRef.current;
-    // 🟢 Safety guard: If the text container doesn't exist, abort.
     if (!root) return;
 
     const selection = window.getSelection();
@@ -237,19 +267,16 @@ export default function ReaderPage() {
     const textNodes = getTextNodesInRange(range);
     if (textNodes.length === 0) return;
 
-    const markId = `mark-${Date.now()}`;
-    const segments = textNodes.map(({ node, start, end }) => ({
-      xpath: getXPathForNode(node, root),
-      start,
-      end,
-    }));
+    const globalInfo = getGlobalTextNodesInfo(root, textNodes);
+    if (!globalInfo) return;
 
-    // Save to memory and local storage
-    highlightStoreRef.current[markId] = { color, segments };
+    const markId = `mark-${Date.now()}`;
+    const { startGlobal, endGlobal } = globalInfo;
+
+    highlightStoreRef.current[markId] = { color, startGlobal, endGlobal };
     persistStore();
 
-    // Paint to UI
-    paintHighlight(markId, color, segments);
+    paintHighlight(markId, color, startGlobal, endGlobal);
 
     selection.removeAllRanges();
     setSelectionMenu({ show: false, x: 0, y: 0 });
@@ -267,8 +294,9 @@ export default function ReaderPage() {
         parent.insertBefore(mark.firstChild, mark);
       }
       parent.removeChild(mark);
-      parent.normalize(); // Merge text nodes back together
     });
+
+    root.normalize(); // Now perfectly safe inside this new stable global mapping engine!
 
     delete highlightStoreRef.current[markId];
     persistStore();
@@ -288,11 +316,12 @@ export default function ReaderPage() {
         parent.insertBefore(mark.firstChild, mark);
       }
       parent.removeChild(mark);
-      parent.normalize();
     });
 
+    root.normalize();
     highlightStoreRef.current = {};
     persistStore();
+
     setSelectionMenu({ show: false, x: 0, y: 0 });
     showToast("All highlights cleared.", "success");
   };
@@ -326,7 +355,6 @@ export default function ReaderPage() {
       .then((bookmarkData) => setIsBookmarked(bookmarkData.isBookmarked))
       .catch(() => {});
 
-    // DRM Protection
     const blockCopy = (e) => {
       e.preventDefault();
       showToast("Copying text is disabled for this story.", "warning");
@@ -340,7 +368,6 @@ export default function ReaderPage() {
   }, [id]);
 
   const handleSelection = () => {
-    // 🟢 Disable the highlighting feature entirely if reading a PDF
     if (story?.type === "pdf") {
       setSelectionMenu({ show: false, x: 0, y: 0 });
       return;
@@ -411,7 +438,7 @@ export default function ReaderPage() {
     >
       {/* Toast Notification */}
       <div
-        className={`fixed top-6 left-1/2 -translate-x-1/2 z- transition-all duration-300 ease-out transform ${
+        className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-out transform ${
           toast.show
             ? "translate-y-0 opacity-100 scale-100"
             : "-translate-y-4 opacity-0 scale-95 pointer-events-none"
@@ -422,10 +449,10 @@ export default function ReaderPage() {
         </div>
       </div>
 
-      {/* Text Selection Menu */}
+      {/* FIX 2: Text Selection Menu — z-[9999] replaces broken z- and z-999 */}
       {selectionMenu.show && (
         <div
-          className="fixed z- flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl transform -translate-x-1/2 -translate-y-full transition-all duration-150 z-999"
+          className="fixed z-[9999] flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl transform -translate-x-1/2 -translate-y-full transition-all duration-150"
           style={{
             left: `${selectionMenu.x}px`,
             top: `${selectionMenu.y - 8}px`,
@@ -467,27 +494,6 @@ export default function ReaderPage() {
             className="p-1 text-zinc-400 hover:text-white transition-colors rounded-md"
           >
             <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Hover Highlight Menu */}
-      {hoveredMark.show && (
-        <div
-          className="fixed z- flex items-center gap-1.5 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl transform -translate-x-1/2 -translate-y-full transition-all duration-150"
-          style={{ left: `${hoveredMark.x}px`, top: `${hoveredMark.y - 8}px` }}
-          onMouseEnter={() =>
-            setHoveredMark((prev) => ({ ...prev, show: true }))
-          }
-          onMouseLeave={() =>
-            setHoveredMark({ show: false, x: 0, y: 0, markId: null })
-          }
-        >
-          <button
-            onClick={() => removeHighlight(hoveredMark.markId)}
-            className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-rose-400 transition-colors z-999"
-          >
-            <X size={14} /> Remove Highlight
           </button>
         </div>
       )}
@@ -590,14 +596,6 @@ export default function ReaderPage() {
           <h1 className="text-4xl md:text-5xl font-bold text-zinc-100 tracking-tight text-center max-w-3xl mx-auto">
             {story?.title || "Untitled"}
           </h1>
-          <div className="flex items-center justify-center gap-4">
-            <p className="text-sm text-zinc-500 font-medium">
-              By{" "}
-              <span className="text-zinc-300">
-                {story?.author || "Anonymous"}
-              </span>
-            </p>
-          </div>
         </header>
 
         <div className="w-full flex justify-center">

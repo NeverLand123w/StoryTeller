@@ -12,8 +12,6 @@ import {
   LayoutDashboard,
   ChevronRight,
   Loader2,
-  Calendar,
-  Tv,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -29,6 +27,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // track if a search was attempted
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -40,6 +39,7 @@ const Navbar = () => {
     setIsMobileMenuOpen(false);
     setIsSearchOpen(false);
     setSuggestions([]);
+    setHasSearched(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -49,31 +49,33 @@ const Navbar = () => {
         !searchContainerRef.current.contains(event.target)
       ) {
         setSuggestions([]);
+        setHasSearched(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Update this useEffect block inside your Navbar component
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchQuery.length > 2) {
         setIsSearching(true);
-        // 🟢 POINT TO YOUR STORIES API
+        setHasSearched(false);
         fetch(`/api/stories?q=${encodeURIComponent(searchQuery)}`)
           .then((res) => res.json())
           .then((data) => {
-            // Assume your story API returns an array, mapping it to fit your suggestion UI
-            setSuggestions(data.slice(0, 5)); // Limit to 5 suggestions
+            setSuggestions(data.slice(0, 5));
             setIsSearching(false);
+            setHasSearched(true); // mark that search completed
           })
           .catch(() => {
             setSuggestions([]);
             setIsSearching(false);
+            setHasSearched(true);
           });
       } else {
         setSuggestions([]);
+        setHasSearched(false);
       }
     }, 500);
 
@@ -86,7 +88,13 @@ const Navbar = () => {
     router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
     setIsSearchOpen(false);
     setSuggestions([]);
+    setHasSearched(false);
   };
+
+  const showDropdown =
+    isSearchOpen &&
+    (suggestions.length > 0 ||
+      (hasSearched && !isSearching && searchQuery.length > 2));
 
   return (
     <>
@@ -109,6 +117,7 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Desktop Search */}
             <div ref={searchContainerRef} className="relative hidden md:block">
               <form
                 onSubmit={handleSearch}
@@ -122,12 +131,16 @@ const Navbar = () => {
                   type="button"
                   onClick={() => {
                     setIsSearchOpen(!isSearchOpen);
-                    if (!isSearchOpen)
+                    if (!isSearchOpen) {
                       setTimeout(
                         () =>
                           document.getElementById("desktop-search")?.focus(),
                         100,
                       );
+                    } else {
+                      setSuggestions([]);
+                      setHasSearched(false);
+                    }
                   }}
                   className="w-10 h-10 flex items-center justify-center shrink-0 text-white/70 hover:text-white transition-colors"
                 >
@@ -137,7 +150,7 @@ const Navbar = () => {
                 <input
                   id="desktop-search"
                   type="text"
-                  placeholder="Search anime..."
+                  placeholder="Search stories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className={`bg-transparent border-none outline-none text-xs text-white placeholder:text-white/30 w-full h-10 ${
@@ -153,8 +166,9 @@ const Navbar = () => {
                 )}
               </form>
 
+              {/* Desktop Dropdown */}
               <AnimatePresence>
-                {isSearchOpen && suggestions.length > 0 && (
+                {showDropdown && (
                   <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -163,43 +177,72 @@ const Navbar = () => {
                     className="absolute top-full right-0 mt-3 w-80 bg-[#151515]/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50"
                   >
                     <div className="p-2">
-                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-3 py-2">
-                        Best Matches
-                      </p>
-                      <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                        {suggestions.map((item) => (
-                          <Link
-                            key={item._id} // MongoDB uses _id
-                            href={`/book/${item._id}`} // Redirect to Book Details Page
-                            className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group"
-                            onClick={() => setIsSearchOpen(false)}
-                          >
-                            <div className="w-10 h-14 shrink-0 rounded bg-[#222] overflow-hidden relative">
-                              <img
-                                src={item.thumbnail || "/placeholder.jpg"}
-                                alt={item.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-amber-500 transition-colors">
-                                {item.title}
-                              </h4>
-                              <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400 font-medium">
-                                <span className="flex items-center gap-1 uppercase tracking-widest text-[8px]">
-                                  {item.genre}
-                                </span>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
+                      {suggestions.length > 0 ? (
+                        <>
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-3 py-2">
+                            Best Matches
+                          </p>
+                          <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {suggestions.map((item) => (
+                              <Link
+                                key={item._id}
+                                href={`/book/${item._id}`}
+                                className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group"
+                                onClick={() => {
+                                  setIsSearchOpen(false);
+                                  setSuggestions([]);
+                                  setHasSearched(false);
+                                }}
+                              >
+                                <div className="w-10 h-14 shrink-0 rounded bg-[#222] overflow-hidden relative">
+                                  <img
+                                    src={item.thumbnail || "/placeholder.jpg"}
+                                    alt={item.title}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-bold text-white truncate group-hover:text-amber-500 transition-colors">
+                                    {item.title}
+                                  </h4>
+                                  <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400 font-medium">
+                                    <span className="flex items-center gap-1 uppercase tracking-widest text-[8px]">
+                                      {item.genre}
+                                    </span>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                          {/* Press enter hint */}
+                          <div className="px-3 py-2 border-t border-white/5 mt-1">
+                            <p className="text-[10px] text-white/30">
+                              Press{" "}
+                              <kbd className="bg-white/10 px-1 rounded text-white/50">
+                                Enter
+                              </kbd>{" "}
+                              to see all results
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2">
+                          <Search size={24} className="text-white/20" />
+                          <p className="text-sm font-medium text-white/40">
+                            No results found
+                          </p>
+                          <p className="text-xs text-white/20">
+                            Try a different search term
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
+            {/* Mobile Search Toggle */}
             <button
               className="md:hidden text-white"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -251,6 +294,7 @@ const Navbar = () => {
         </div>
       </nav>
 
+      {/* Mobile Search Panel */}
       <AnimatePresence>
         {isSearchOpen && (
           <motion.div
@@ -267,27 +311,68 @@ const Navbar = () => {
               <input
                 autoFocus
                 type="text"
-                placeholder="Search anime..."
+                placeholder="Search stories..."
                 className="flex-1 bg-transparent text-white outline-none text-sm font-medium"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <button type="button" onClick={() => setIsSearchOpen(false)}>
+              {/* Mobile search submit button */}
+              {searchQuery.trim() && (
+                <button
+                  type="submit"
+                  className="text-red-500 font-bold text-xs uppercase tracking-wider"
+                >
+                  Search
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchOpen(false);
+                  setSuggestions([]);
+                  setHasSearched(false);
+                }}
+              >
                 <X size={20} className="text-white" />
               </button>
             </form>
 
-            {suggestions.length > 0 && (
+            {isSearching && (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={20} className="text-red-500 animate-spin" />
+              </div>
+            )}
+
+            {!isSearching &&
+              hasSearched &&
+              searchQuery.length > 2 &&
+              suggestions.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 gap-2 border-t border-white/5">
+                  <Search size={24} className="text-white/20" />
+                  <p className="text-sm font-medium text-white/40">
+                    No results found
+                  </p>
+                  <p className="text-xs text-white/20">
+                    Try a different search term
+                  </p>
+                </div>
+              )}
+
+            {!isSearching && suggestions.length > 0 && (
               <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto custom-scrollbar border-t border-white/5 pt-2">
                 {suggestions.map((item) => (
                   <Link
-                    key={item.id}
-                    href={`/anime/${item.id}`}
+                    key={item._id}
+                    href={`/book/${item._id}`}
                     className="flex items-center gap-3 p-2 rounded-lg active:bg-white/10"
-                    onClick={() => setIsSearchOpen(false)}
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setSuggestions([]);
+                      setHasSearched(false);
+                    }}
                   >
                     <img
-                      src={item.image}
+                      src={item.thumbnail || "/placeholder.jpg"}
                       alt={item.title}
                       className="w-10 h-14 rounded object-cover bg-[#222]"
                     />
@@ -295,8 +380,8 @@ const Navbar = () => {
                       <h4 className="text-sm font-bold text-white line-clamp-1">
                         {item.title}
                       </h4>
-                      <p className="text-xs text-gray-500">
-                        {item.releaseDate} • {item.type}
+                      <p className="text-xs text-gray-500 uppercase tracking-widest">
+                        {item.genre}
                       </p>
                     </div>
                   </Link>
@@ -307,6 +392,7 @@ const Navbar = () => {
         )}
       </AnimatePresence>
 
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
